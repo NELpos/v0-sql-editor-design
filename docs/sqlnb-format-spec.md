@@ -155,7 +155,7 @@ Each block contains rich metadata:
 
 YAML diffs are clean and readable:
 
-```diff
+\`\`\`diff
 - content:
 -   raw: "SELECT * FROM users LIMIT 10;"
 + content:
