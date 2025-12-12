@@ -3,7 +3,25 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2, TableIcon, BarChart3, FileJson, Zap } from "lucide-react"
+import { Loader2, TableIcon, LineChart, FileJson, Zap, BarChart3, PieChart } from 'lucide-react'
+import { 
+  LineChart as RechartsLineChart, 
+  Line, 
+  BarChart as RechartsBarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts'
+import { Card } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useState } from "react"
 
 interface ResultsPanelProps {
   results: any
@@ -11,6 +29,8 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ results, isExecuting }: ResultsPanelProps) {
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>('line')
+
   if (isExecuting) {
     return (
       <div className="flex h-full items-center justify-center bg-secondary/10">
@@ -41,6 +61,45 @@ export function ResultsPanel({ results, isExecuting }: ResultsPanelProps) {
     )
   }
 
+  const hasTimeSeriesData = results?.columns?.some((col: string) => 
+    ['date', 'time', 'timestamp', 'hour', 'day', 'month', 'year'].some(keyword => 
+      col.toLowerCase().includes(keyword)
+    )
+  )
+
+  const numericColumns = results?.columns?.filter((col: string) => {
+    if (!results.rows || results.rows.length === 0) return false
+    const firstValue = results.rows[0][col]
+    return typeof firstValue === 'number'
+  }) || []
+
+  const timeColumn = results?.columns?.find((col: string) => 
+    ['date', 'time', 'timestamp', 'hour', 'day'].some(keyword => 
+      col.toLowerCase().includes(keyword)
+    )
+  )
+
+  const categoryColumn = results?.columns?.find((col: string) => 
+    !numericColumns.includes(col) && col !== timeColumn
+  )
+
+  const hasCategories = categoryColumn && results?.rows?.length > 0
+  const showChartTab = numericColumns.length > 0 && (hasTimeSeriesData || hasCategories)
+
+  const CHART_COLORS = [
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))'
+  ]
+
+  const defaultChartType = (() => {
+    if (hasTimeSeriesData) return 'line'
+    if (hasCategories && results.rows.length <= 10) return 'pie'
+    return 'bar'
+  })()
+
   return (
     <div className="h-full bg-background">
       <Tabs defaultValue="table" className="h-full flex flex-col">
@@ -50,17 +109,19 @@ export function ResultsPanel({ results, isExecuting }: ResultsPanelProps) {
               <TableIcon className="h-4 w-4" />
               Table
             </TabsTrigger>
-            <TabsTrigger value="visualize" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Visualize
+            {showChartTab && (
+              <TabsTrigger value="charts" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Charts
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="stats" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Stats
             </TabsTrigger>
             <TabsTrigger value="json" className="gap-2">
               <FileJson className="h-4 w-4" />
               JSON
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="gap-2">
-              <Zap className="h-4 w-4" />
-              Query Stats
             </TabsTrigger>
           </TabsList>
         </div>
@@ -96,21 +157,181 @@ export function ResultsPanel({ results, isExecuting }: ResultsPanelProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="visualize" className="flex-1 m-0 p-4">
-          <div className="flex h-full items-center justify-center text-muted-foreground">
-            <div className="text-center space-y-2">
-              <BarChart3 className="h-12 w-12 mx-auto opacity-50" />
-              <p>Visualization coming soon</p>
-              <p className="text-xs">Charts and graphs will appear here</p>
-            </div>
-          </div>
-        </TabsContent>
+        {showChartTab && (
+          <TabsContent value="charts" className="flex-1 m-0 p-6 overflow-auto">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Data Visualization</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Showing {numericColumns.length} metric{numericColumns.length !== 1 ? 's' : ''} 
+                    {hasTimeSeriesData && ' over time'}
+                  </p>
+                </div>
+                
+                <Select 
+                  value={chartType} 
+                  onValueChange={(value) => setChartType(value as 'line' | 'bar' | 'pie')}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select chart type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="line">
+                      <div className="flex items-center gap-2">
+                        <LineChart className="h-4 w-4" />
+                        Line Chart
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="bar">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Bar Chart
+                      </div>
+                    </SelectItem>
+                    {hasCategories && results.rows.length <= 20 && (
+                      <SelectItem value="pie">
+                        <div className="flex items-center gap-2">
+                          <PieChart className="h-4 w-4" />
+                          Pie Chart
+                        </div>
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        <TabsContent value="json" className="flex-1 m-0 overflow-hidden">
-          <ScrollArea className="h-full">
-            <pre className="p-4 text-xs font-mono">{JSON.stringify(results.rows, null, 2)}</pre>
-          </ScrollArea>
-        </TabsContent>
+              <Card className="p-6">
+                {chartType === 'line' && (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RechartsLineChart data={results.rows} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey={timeColumn || categoryColumn || results.columns[0]} 
+                        className="text-xs"
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <YAxis 
+                        className="text-xs"
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '6px'
+                        }}
+                      />
+                      <Legend />
+                      {numericColumns.map((col, index) => (
+                        <Line
+                          key={col}
+                          type="monotone"
+                          dataKey={col}
+                          stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                )}
+
+                {chartType === 'bar' && (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RechartsBarChart data={results.rows} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey={timeColumn || categoryColumn || results.columns[0]} 
+                        className="text-xs"
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <YAxis 
+                        className="text-xs"
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '6px'
+                        }}
+                      />
+                      <Legend />
+                      {numericColumns.map((col, index) => (
+                        <Bar
+                          key={col}
+                          dataKey={col}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                )}
+
+                {chartType === 'pie' && numericColumns.length > 0 && (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RechartsPieChart>
+                      <Pie
+                        data={results.rows.map((row: any) => ({
+                          name: row[categoryColumn || results.columns[0]],
+                          value: row[numericColumns[0]]
+                        }))}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={true}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={120}
+                        fill={CHART_COLORS[0]}
+                        dataKey="value"
+                      >
+                        {results.rows.map((_: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '6px'
+                        }}
+                      />
+                      <Legend />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                )}
+              </Card>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {numericColumns.slice(0, 4).map((col) => {
+                  const values = results.rows.map((row: any) => row[col]).filter((v: any) => typeof v === 'number')
+                  const sum = values.reduce((a: number, b: number) => a + b, 0)
+                  const avg = sum / values.length
+                  const max = Math.max(...values)
+                  const min = Math.min(...values)
+
+                  return (
+                    <Card key={col} className="p-4">
+                      <div className="text-xs text-muted-foreground mb-1">{col}</div>
+                      <div className="text-2xl font-bold mb-2">{avg.toFixed(2)}</div>
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Max:</span>
+                          <span className="font-medium">{max.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Min:</span>
+                          <span className="font-medium">{min.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value="stats" className="flex-1 m-0 p-4">
           <div className="space-y-4">
@@ -134,6 +355,12 @@ export function ResultsPanel({ results, isExecuting }: ResultsPanelProps) {
               </ul>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="json" className="flex-1 m-0 overflow-hidden">
+          <ScrollArea className="h-full">
+            <pre className="p-4 text-xs font-mono">{JSON.stringify(results.rows, null, 2)}</pre>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>

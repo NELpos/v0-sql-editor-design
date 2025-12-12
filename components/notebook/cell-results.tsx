@@ -12,8 +12,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { TableIcon, FileJson, Zap, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { TableIcon, FileJson, Zap, Download, ChevronDown, ChevronUp, LineChartIcon, BarChart3, PieChart } from 'lucide-react';
 import type { NotebookResults } from '@/types/notebook';
+import { LineChart, Line, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface CellResultsProps {
   results: NotebookResults;
@@ -23,6 +31,7 @@ export function CellResults({ results }: CellResultsProps) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'pie'>('line');
 
   if (results.error) {
     return (
@@ -103,6 +112,171 @@ export function CellResults({ results }: CellResultsProps) {
     }
   };
 
+  const detectChartData = () => {
+    if (results.data.length === 0) return null;
+
+    const hasTimeColumn = results.columns.some(col => 
+      /date|time|timestamp|created|updated|day|month|year/i.test(col)
+    );
+    
+    const numericColumns = results.columns.filter(col => {
+      const firstValue = results.data[0]?.[col];
+      return typeof firstValue === 'number' || !isNaN(Number(firstValue));
+    });
+
+    if (hasTimeColumn && numericColumns.length > 0) {
+      const timeColumn = results.columns.find(col => 
+        /date|time|timestamp|created|updated|day|month|year/i.test(col)
+      );
+      
+      return {
+        type: 'timeseries' as const,
+        xAxis: timeColumn!,
+        yAxis: numericColumns,
+        data: results.data,
+      };
+    }
+
+    if (numericColumns.length >= 2) {
+      return {
+        type: 'numeric' as const,
+        xAxis: results.columns[0],
+        yAxis: numericColumns.slice(0, 3),
+        data: results.data,
+      };
+    }
+
+    if (numericColumns.length === 1) {
+      return {
+        type: 'categorical' as const,
+        labelColumn: results.columns[0],
+        valueColumn: numericColumns[0],
+        data: results.data.slice(0, 10),
+      };
+    }
+
+    return null;
+  };
+
+  const chartData = detectChartData();
+
+  const renderChart = () => {
+    if (!chartData) {
+      return (
+        <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+          <div className="text-center space-y-2">
+            <LineChartIcon className="h-12 w-12 mx-auto opacity-30" />
+            <p className="text-sm">No chartable data detected</p>
+            <p className="text-xs">Try queries with numeric or time-series data</p>
+          </div>
+        </div>
+      );
+    }
+
+    const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+
+    if (chartType === 'pie' && chartData.type === 'categorical') {
+      const pieData = chartData.data.map((row) => ({
+        name: String(row[chartData.labelColumn]),
+        value: Number(row[chartData.valueColumn]),
+      }));
+
+      return (
+        <ResponsiveContainer width="100%" height={400}>
+          <RechartsPieChart>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+              outerRadius={120}
+              fill="hsl(var(--chart-1))"
+              dataKey="value"
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </RechartsPieChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (chartType === 'bar') {
+      return (
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={chartData.data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis 
+              dataKey={chartData.xAxis} 
+              stroke="hsl(var(--muted-foreground))"
+              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+            />
+            <YAxis 
+              stroke="hsl(var(--muted-foreground))"
+              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: 'hsl(var(--popover))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '6px',
+              }}
+            />
+            <Legend />
+            {chartData.yAxis.map((col, idx) => (
+              <Bar
+                key={col}
+                dataKey={col}
+                fill={COLORS[idx % COLORS.length]}
+                name={col}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    return (
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart data={chartData.data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis 
+            dataKey={chartData.xAxis} 
+            stroke="hsl(var(--muted-foreground))"
+            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+          />
+          <YAxis 
+            stroke="hsl(var(--muted-foreground))"
+            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'hsl(var(--popover))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: '6px',
+            }}
+          />
+          <Legend />
+          {chartData.yAxis.map((col, idx) => (
+            <Line
+              key={col}
+              type="monotone"
+              dataKey={col}
+              stroke={COLORS[idx % COLORS.length]}
+              strokeWidth={2}
+              dot={{ fill: COLORS[idx % COLORS.length], r: 3 }}
+              name={col}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="border-b border-border bg-secondary/20 px-4 py-2 flex items-center justify-between">
@@ -161,6 +335,10 @@ export function CellResults({ results }: CellResultsProps) {
                 <FileJson className="h-3 w-3" />
                 JSON
               </TabsTrigger>
+              <TabsTrigger value="charts" className="gap-2 text-xs">
+                <LineChartIcon className="h-3 w-3" />
+                Charts
+              </TabsTrigger>
               <TabsTrigger value="stats" className="gap-2 text-xs">
                 <Zap className="h-3 w-3" />
                 Stats
@@ -216,6 +394,56 @@ export function CellResults({ results }: CellResultsProps) {
                 {JSON.stringify(sortedData, null, 2)}
               </pre>
             </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="charts" className="m-0">
+            <div className="p-4 space-y-4">
+              {chartData && (
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Visualization</h4>
+                  <Select value={chartType} onValueChange={(value: any) => setChartType(value)}>
+                    <SelectTrigger className="w-[140px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="line">
+                        <div className="flex items-center gap-2">
+                          <LineChartIcon className="h-3 w-3" />
+                          Line Chart
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="bar">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-3 w-3" />
+                          Bar Chart
+                        </div>
+                      </SelectItem>
+                      {chartData.type === 'categorical' && (
+                        <SelectItem value="pie">
+                          <div className="flex items-center gap-2">
+                            <PieChart className="h-3 w-3" />
+                            Pie Chart
+                          </div>
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {renderChart()}
+
+              {chartData && (
+                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                  <div className="font-medium mb-1">Chart Info</div>
+                  <div className="space-y-0.5">
+                    <div>X-Axis: {chartData.xAxis || chartData.labelColumn}</div>
+                    <div>Y-Axis: {chartData.yAxis?.join(', ') || chartData.valueColumn}</div>
+                    <div>Data Points: {chartData.data.length}</div>
+                  </div>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="stats" className="m-0 p-4">

@@ -72,6 +72,49 @@ function generateMockResults(query: string): any[] {
     ];
   }
 
+  // Generate time-series data for analytics, metrics, trends queries
+  if (normalizedQuery.includes('time') || normalizedQuery.includes('date') || 
+      normalizedQuery.includes('trend') || normalizedQuery.includes('series') ||
+      normalizedQuery.includes('metrics') || normalizedQuery.includes('analytics') ||
+      normalizedQuery.includes('daily') || normalizedQuery.includes('hourly') ||
+      normalizedQuery.includes('history')) {
+    
+    // Generate 30 days of time-series data
+    const data = [];
+    const baseDate = new Date('2025-01-01');
+    
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Create realistic trending data with some randomness
+      const baseValue = 1000;
+      const trend = i * 50; // Upward trend
+      const variance = Math.random() * 200 - 100; // Random variance
+      const revenue = Math.round((baseValue + trend + variance) * 100) / 100;
+      
+      const baseOrders = 50;
+      const orderTrend = i * 2;
+      const orderVariance = Math.random() * 10 - 5;
+      const orders = Math.round(baseOrders + orderTrend + orderVariance);
+      
+      const users = Math.round((50 + i * 3 + Math.random() * 15) * 10) / 10;
+      const conversionRate = Math.round((2.5 + Math.random() * 1.5) * 10) / 10;
+      
+      data.push({
+        date: dateStr,
+        revenue: revenue,
+        orders: orders,
+        active_users: users,
+        conversion_rate: conversionRate,
+        avg_order_value: Math.round((revenue / orders) * 100) / 100
+      });
+    }
+    
+    return data;
+  }
+
   // Generate different mock data based on query patterns
   if (normalizedQuery.includes('order') || normalizedQuery.includes('purchase') || normalizedQuery.includes('sale')) {
     return [
@@ -138,15 +181,24 @@ function generateMockResults(query: string): any[] {
     ];
   }
 
-  if (normalizedQuery.includes('time') || normalizedQuery.includes('hour') || normalizedQuery.includes('day')) {
-    return [
-      { hour: '00:00', visitors: 234, pageviews: 567, bounce_rate: 45.2, avg_session: 180 },
-      { hour: '01:00', visitors: 189, pageviews: 423, bounce_rate: 48.1, avg_session: 165 },
-      { hour: '02:00', visitors: 156, pageviews: 321, bounce_rate: 51.3, avg_session: 142 },
-      { hour: '03:00', visitors: 134, pageviews: 278, bounce_rate: 53.7, avg_session: 128 },
-      { hour: '04:00', visitors: 178, pageviews: 389, bounce_rate: 49.8, avg_session: 155 },
-      { hour: '05:00', visitors: 267, pageviews: 612, bounce_rate: 43.5, avg_session: 198 },
-    ];
+  if (normalizedQuery.includes('hour') || normalizedQuery.includes('hourly')) {
+    const data = [];
+    for (let i = 0; i < 24; i++) {
+      const hour = i.toString().padStart(2, '0') + ':00';
+      const peakFactor = i >= 9 && i <= 17 ? 1.5 : 0.7; // Peak hours
+      const visitors = Math.round((200 + Math.random() * 100) * peakFactor);
+      const pageviews = Math.round(visitors * (2 + Math.random()));
+      
+      data.push({
+        hour: hour,
+        visitors: visitors,
+        pageviews: pageviews,
+        bounce_rate: Math.round((40 + Math.random() * 20) * 10) / 10,
+        avg_session_duration: Math.round((150 + Math.random() * 100)),
+        conversions: Math.round(visitors * 0.03)
+      });
+    }
+    return data;
   }
 
   // Default generic dataset for unmatched queries
